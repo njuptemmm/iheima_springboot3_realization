@@ -15,5 +15,6 @@
 
 - [x] docker
 - [x] dify
-
-  
+      
+有关于docker和dify相关的学习、配置部分的过程我已经完成了整理的工作，收录在**Springboot进一步开发--用 Docker 和 Dify 部署你的 Spring Boot 项目**中。
+如果你想了解有关于springboot的进一步开发，建议你查看那篇文章。
