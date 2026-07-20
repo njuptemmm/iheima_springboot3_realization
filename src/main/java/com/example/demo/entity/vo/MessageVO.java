@@ -26,6 +26,7 @@ public class MessageVO {
                 role="";
                 break;
         }
-        this.content = message.getText();
+        // 避免 getText() 返回 null 时把 null 暴露给前端
+        this.content = message.getText() == null ? "" : message.getText();
     }
 }

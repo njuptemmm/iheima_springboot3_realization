@@ -55,12 +55,11 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.28</version>
 		</dependency>
-		<!-- 如果使用WebFlux进行流式输出所需要的依赖 -->
+		<!-- 参数校验 starter：用于 @Validated、@NotBlank 等 -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webflux</artifactId>
+			<artifactId>spring-boot-starter-validation</artifactId>
 		</dependency>
 		<!-- 如果使用MyBatis-Plus进行数据库操作所需要的依赖(加入数据库所需要的操作) -->
 		<dependency>

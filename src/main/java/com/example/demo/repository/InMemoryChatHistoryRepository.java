@@ -1,19 +1,18 @@
 package com.example.demo.repository;
 
 import org.springframework.stereotype.Component;
-import lombok.RequiredArgsConstructor;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 
 @Component
 public class InMemoryChatHistoryRepository implements ChatHistoryRepository {
     //思路：使用一个map来存储值和对应的数据类型
-    private final Map<String, List<String>> chatHistory = new HashMap<>();//这里是将数据存储在内存中
+    // 使用线程安全的 ConcurrentHashMap + CopyOnWriteArrayList，避免并发请求导致数据不一致
+    private final Map<String, List<String>> chatHistory = new ConcurrentHashMap<>();//这里是将数据存储在内存中
 
     @Override
     public void save(String type, String chatId) {
@@ -25,7 +24,7 @@ public class InMemoryChatHistoryRepository implements ChatHistoryRepository {
         }
         List<String> chatIds = chatHistory.get(type);
          */
-        List<String> chatIds = chatHistory.computeIfAbsent(type, k -> new ArrayList<>());//调用其中的方法从而实现上面的效果
+        List<String> chatIds = chatHistory.computeIfAbsent(type, k -> new CopyOnWriteArrayList<>());//调用其中的方法从而实现上面的效果
         if (chatIds.contains(chatId)) {
             return; // 如果已经这个chatId已经在内存中存在，则不添加
         }
@@ -38,7 +37,9 @@ public class InMemoryChatHistoryRepository implements ChatHistoryRepository {
         List<String> chatIds = chatHistory.get(type);
         return chatIds == null ? new ArrayList<>() : chatIds;
         */
-        return chatHistory.getOrDefault(type,List.of());//ArayList是一个空的集合,可以直接简化为List.of()
+        List<String> chatIds = chatHistory.get(type);
+        // 返回不可变副本，防止外部修改内部状态
+        return chatIds == null ? List.of() : List.copyOf(chatIds);
     }
 
 }

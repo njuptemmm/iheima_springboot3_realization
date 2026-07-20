@@ -7,9 +7,11 @@
 package com.example.demo.controller;
 import com.example.demo.entity.vo.MessageVO;
 import com.example.demo.repository.ChatHistoryRepository;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -17,10 +19,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+@Validated
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/ai/history")
 public class ChatHistoryController {
+
+    // 单次查询历史消息的最大数量，防止一次性拉取过多数据
+    private static final int MAX_HISTORY_MESSAGES = 100;
 
     private final ChatHistoryRepository chatHistoryRepository;
 
@@ -28,14 +34,14 @@ public class ChatHistoryController {
 
     //根据类型来查询所有的用户ID
     @GetMapping("/{type}")
-    public List<String> getChatIds(@PathVariable("type") String type){
+    public List<String> getChatIds(@PathVariable("type") @NotBlank String type){
         return chatHistoryRepository.getChatIds(type);
     }
 
     //根据会话的ID查询其中详细的聊天记录
     @GetMapping("/{type}/{chatId}")
-    public List<MessageVO> getChatHistory(@PathVariable("type") String type, @PathVariable("chatId") String chatId) {
-        List<Message>messages =chatMemory.get(chatId,Integer.MAX_VALUE);//按照视频教学的结果来说这里应该是有一个数值用来用表示返回的文本量的，但是查询文件发现并没有相关的限制？
+    public List<MessageVO> getChatHistory(@PathVariable("type") @NotBlank String type, @PathVariable("chatId") @NotBlank String chatId) {
+        List<Message>messages =chatMemory.get(chatId, MAX_HISTORY_MESSAGES);//按照视频教学的结果来说这里应该是有一个数值用来用表示返回的文本量的，但是查询文件发现并没有相关的限制？
         //使用的springboot中保存了一个方法能够使用用户的ID来查询会话的记录，也就是我们在这里实现的操作
         if(messages==null){
             return List.of();

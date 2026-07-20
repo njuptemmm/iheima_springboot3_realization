@@ -1,6 +1,6 @@
 package com.example.demo.config;
 
-import com.example.demo.Tools.CourseTools;
+import com.example.demo.tools.CourseTools;
 import com.example.demo.constants.SystemConstants;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;

@@ -1,20 +1,24 @@
 package com.example.demo.controller;
 
 import com.example.demo.entity.vo.Result;
+import com.example.demo.exception.BusinessException;
 import com.example.demo.repository.ChatHistoryRepository;
 import com.example.demo.repository.FileRepository;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.reader.ExtractedTextFormatter;
 import org.springframework.ai.reader.pdf.PagePdfDocumentReader;
 import org.springframework.ai.reader.pdf.config.PdfDocumentReaderConfig;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Flux;
@@ -29,6 +33,7 @@ import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvis
 import static org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor.FILTER_EXPRESSION;
 
 @Slf4j
+@Validated
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/ai/pdf")
@@ -42,21 +47,29 @@ public class PdfController {
 
     private final ChatHistoryRepository chatHistoryRepository;
 
-    @RequestMapping(value = "/chat", produces = "text/html;charset=utf-8")
-    public Flux<String> chat(String prompt, String chatId) {
+    @RequestMapping(value = "/chat", method = {RequestMethod.GET, RequestMethod.POST}, produces = "text/html;charset=utf-8")
+    public Flux<String> chat(
+            @RequestParam("prompt") @NotBlank String prompt,
+            @RequestParam("chatId") @NotBlank String chatId) {
         // 1.找到会话文件
         Resource file = fileRepository.getFile(chatId);
-        if (!file.exists()) {
+        if (file == null || !file.exists()) {
             // 文件不存在，不回答
-            throw new RuntimeException("会话文件不存在！");
+            throw new BusinessException("会话文件不存在！");
         }
         // 2.保存会话id
         chatHistoryRepository.save("pdf", chatId);
-        // 3.请求模型
+        // 3.使用 FilterExpressionBuilder 安全构建过滤表达式，避免文件名中的单引号等破坏表达式
+        String filename = Objects.requireNonNull(file.getFilename());
+        String filterExpression = new FilterExpressionBuilder()
+                .eq("file_name", filename)
+                .build()
+                .toString();
+        // 4.请求模型
         return pdfChatClient.prompt()
                 .user(prompt)
                 .advisors(a -> a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))
-                .advisors(a -> a.param(FILTER_EXPRESSION, "file_name == '" + file.getFilename() + "'"))
+                .advisors(a -> a.param(FILTER_EXPRESSION, filterExpression))
                 .stream()
                 .content();
     }
@@ -64,11 +77,11 @@ public class PdfController {
     /**
      * 文件上传
      */
-    @RequestMapping("/upload/{chatId}")
-    public Result uploadPdf(@PathVariable String chatId, @RequestParam("file") MultipartFile file) {
+    @PostMapping("/upload/{chatId}")
+    public Result uploadPdf(@PathVariable @NotBlank String chatId, @RequestParam("file") MultipartFile file) {
         try {
             // 1. 校验文件是否为PDF格式
-            if (!Objects.equals(file.getContentType(), "application/pdf")) {
+            if (!isPdf(file)) {
                 return Result.fail("只能上传PDF文件！");
             }
             // 2.保存文件
@@ -89,10 +102,10 @@ public class PdfController {
      * 文件下载
      */
     @GetMapping("/file/{chatId}")
-    public ResponseEntity<Resource> download(@PathVariable("chatId") String chatId) throws IOException {
+    public ResponseEntity<Resource> download(@PathVariable("chatId") @NotBlank String chatId) throws IOException {
         // 1.读取文件
         Resource resource = fileRepository.getFile(chatId);
-        if (!resource.exists()) {
+        if (resource == null || !resource.exists()) {
             return ResponseEntity.notFound().build();
         }
         // 2.文件名编码，写入响应头
@@ -117,5 +130,15 @@ public class PdfController {
         List<Document> documents = reader.read();
         // 3.写入向量库
         vectorStore.add(documents);
+    }
+
+    /**
+     * 校验上传文件是否为 PDF
+     */
+    private boolean isPdf(MultipartFile file) {
+        return file != null
+                && !file.isEmpty()
+                && "application/pdf".equals(file.getContentType())
+                && StringUtils.endsWithIgnoreCase(file.getOriginalFilename(), ".pdf");
     }
 }

@@ -3,13 +3,14 @@
 package com.example.demo.controller;
 
 import com.example.demo.repository.ChatHistoryRepository;
+import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.model.Media;
 import org.springframework.util.MimeType;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,7 +21,7 @@ import java.util.Objects;
 
 import static org.springframework.ai.chat.client.advisor.AbstractChatMemoryAdvisor.CHAT_MEMORY_CONVERSATION_ID_KEY;
 
-@CrossOrigin("*") //允许所有来源的跨域请求
+@Validated
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/ai")//这里主要就是在设置路径的时候要求要注意
@@ -41,10 +42,10 @@ public class  ChatController {
     }
     */
     //使用流式的方法来使用使用这个进行输出：
-    @RequestMapping(value = "/chat", produces = "text/html; charset=UTF-8")
+    @RequestMapping(value = "/chat", method = {RequestMethod.GET, RequestMethod.POST}, produces = "text/html; charset=UTF-8")
     public Flux<String> chat(
-            @RequestParam("prompt") String prompt,
-            @RequestParam("chatId") String chatId,
+            @RequestParam("prompt") @NotBlank String prompt,
+            @RequestParam("chatId") @NotBlank String chatId,
             @RequestParam(value="files",required = false) List<MultipartFile> files)//多文件的集合
     {
         //1、保存会话ID
