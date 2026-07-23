@@ -8,6 +8,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 
+/**
+ * ChatHistoryRepository 的内存版实现 —— 学习对照，运行时不会被注入使用。
+ *
+ * <p>Redis 版本 {@link RedisChatHistoryRepository} 加了 {@code @Primary} 优先注入，
+ * 这个内存版仍带 {@code @Component} 被 Spring 扫描到，只作为对照参考保留：
+ * <ul>
+ *   <li>看两种实现的写法差异（Set vs ConcurrentHashMap+CopyOnWriteArrayList）</li>
+ *   <li>如果想临时切回内存版，把 Redis 版的 {@code @Primary} 移到这里即可</li>
+ *   <li>写单元测试时可以显式注入这个内存版，避免依赖 Redis</li>
+ * </ul>
+ *
+ * <p>局限：服务重启后所有 chatId 列表清零，这就是引入 Redis 版本的直接原因。
+ */
 @Component
 public class InMemoryChatHistoryRepository implements ChatHistoryRepository {
     //思路：使用一个map来存储值和对应的数据类型

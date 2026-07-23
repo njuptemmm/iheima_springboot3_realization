@@ -72,6 +72,17 @@
 			<artifactId>spring-ai-pdf-document-reader</artifactId>
 		</dependency>
 
+		<!-- Redis：会话历史持久化 + course/school 查询缓存 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+		<!-- Spring Cache 抽象：@Cacheable、@CacheEvict 等声明式缓存注解 -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-cache</artifactId>
+		</dependency>
+
 
 
 	</dependencies>

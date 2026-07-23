@@ -1,17 +1,22 @@
 spring:
   application:
     name: demo_ai_2
+  # 项目采用 spring profile 分离敏感配置：
+  # 真实的 api-key / password 放在 application-local.yaml 里（已被 .gitignore 排除）
+  # 默认激活 local profile；无 application-local.yaml 时启动会失败，提示补齐配置
+  profiles:
+    active: local
   ai:
     openai:
       base-url: https://api.moonshot.cn
-      api-key:  sk-ycxvUSYTAqAAnbbSFs5LLmeXlmCBUBCNjvE4msqEQxjmvmgX
+      # api-key 由 application-local.yaml 提供
       chat:
         options:
           model:  kimi-k2.6
           temperature: 1
       embedding:
         base-url: https://dashscope.aliyuncs.com/compatible-mode
-        api-key:  ${API_KEY}
+        # api-key 由 application-local.yaml 提供
         options:
           model: text-embedding-v3
           dimensions: 1024
@@ -22,10 +27,8 @@ spring:
 
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # 生产环境请通过环境变量/密钥管理 DB_USERNAME / DB_PASSWORD，并开启 SSL
+    # 生产环境请通过密钥管理，本地开发的 username/password 由 application-local.yaml 提供
     url: jdbc:mysql://localhost:3306/itheima?serverTimezone=Asia/Shanghai&useSSL=false&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&transformedBitIsBoolean=true&tinyInt1isBit=false&allowPublicKeyRetrieval=true
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:123456}
     hikari:
       maximum-pool-size: 10
       minimum-idle: 5
@@ -33,6 +36,28 @@ spring:
       max-lifetime: 1800000
       idle-timeout: 600000
       leak-detection-threshold: 60000
+
+  # Redis 连接配置（Memurai 兼容 Redis 协议，默认监听 localhost:6379）
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # password: 如果 Memurai 配了密码就填这里，本地开发通常不需要
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+  # Spring Cache 抽象层配置：使用 Redis 作为缓存后端
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000            # 缓存 TTL 10 分钟（单位：毫秒）
+      cache-null-values: false        # 不缓存 null，避免击穿场景下缓存无效值
+      use-key-prefix: true
+      key-prefix: "demo_ai_2:cache:"  # 缓存 key 统一前缀，避免与业务 key 冲突
 
 app:
   pdf:

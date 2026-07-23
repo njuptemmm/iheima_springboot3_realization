@@ -17,7 +17,8 @@
 - **JDK**: 17（`pom.xml` 指定）
 - **Maven**: 3.8+（建议）
 - **MySQL**: 8.x（默认连接 `localhost:3306/itheima`）
-- **大模型与向量模型**: 通过 Spring AI OpenAI 协议兼容接入（本项目默认接入阿里云 DashScope compatible-mode）
+- **Redis**: 6.x+（推荐 Windows 用户使用 [Memurai Developer](https://www.memurai.com/get-memurai)，Redis 完全兼容；Linux/macOS 用官方 Redis 或 Docker）
+- **大模型与向量模型**: 通过 Spring AI OpenAI 协议兼容接入（当前默认对话走 Kimi，Embedding 走阿里云 DashScope）
 
 ---
 
@@ -76,6 +77,34 @@ $env:API_KEY="你的key"
 - 密码：`123456`
 
 如需修改，直接编辑 `application.yaml` 中的 `spring.datasource.*`。
+
+### 4) Redis（新增）
+
+用于持久化会话历史（`InMemoryChatHistoryRepository` → `RedisChatHistoryRepository`）和缓存 `course`/`school` 查询结果。
+
+- `spring.data.redis.host`: `localhost`
+- `spring.data.redis.port`: `6379`
+- `spring.cache.type`: `redis`
+- `spring.cache.redis.time-to-live`: `600000`（缓存 TTL 10 分钟）
+- `spring.cache.redis.key-prefix`: `demo_ai_2:cache:`
+
+#### Windows 下用 Memurai 启动 Redis
+
+1. 到 [Memurai 官网](https://www.memurai.com/get-memurai) 下载 Memurai Developer（免费）并安装
+2. 安装完成后 Memurai 会作为 Windows 服务自动启动，监听 `localhost:6379`
+3. 验证连接：
+
+```powershell
+# 服务状态
+Get-Service Memurai
+# 应返回：Status Running
+
+# Ping 测试（如果 memurai-cli 不在 PATH，用绝对路径，例如 D:\Memurai\memurai-cli.exe）
+memurai-cli ping
+# 应返回：PONG
+```
+
+> **注意**：项目启动依赖 Redis 可连接，Memurai 未启动时应用会启动失败并报 `Unable to connect to Redis`。
 
 ---
 

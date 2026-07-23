@@ -13,6 +13,7 @@ import com.example.demo.service.ISchoolService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -33,6 +34,9 @@ public class CourseTools {
 
 
     @Tool(description = "根据条件查询课程")
+    // 课程数据变化极少，加 Redis 缓存 —— key 用 CourseQuery.toString() 保证不同筛选组合各自缓存
+    // TTL 走全局配置 spring.cache.redis.time-to-live（10 分钟），过期后重新查库
+    @Cacheable(value = "courses", key = "#query != null ? #query.toString() : 'null'")
     public List<Course> queryCourses(@ToolParam(description = "查询的条件",required = true) CourseQuery query){
        if(query == null){
            return List.of();
@@ -55,6 +59,8 @@ public class CourseTools {
     }
 
     @Tool(description = "查询所有的校区")
+    // 校区几乎不会动，全量列表用固定 key 缓存
+    @Cacheable(value = "schools", key = "'all'")
     public List<School>querySchool(){
         return schoolService.list();
     }

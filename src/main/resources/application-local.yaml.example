@@ -1,0 +1,32 @@
+# =====================================================================
+# 本地敏感配置模板
+#
+# 使用方法：
+#   1. 把本文件复制一份，重命名为 application-local.yaml
+#   2. 填入你自己的 api-key、密码等真实值
+#   3. application-local.yaml 已在 .gitignore 中，不会被提交到 git
+#
+# Spring Boot 会先加载 application.yaml，再用 application-local.yaml
+# 覆盖同名 key（因为 application.yaml 里 spring.profiles.active=local）。
+# =====================================================================
+
+spring:
+  ai:
+    openai:
+      # Kimi (Moonshot) API Key —— 从 https://platform.moonshot.cn 获取
+      api-key: sk-YOUR_KIMI_API_KEY_HERE
+      embedding:
+        # 阿里云 DashScope API Key —— 从 https://dashscope.aliyuncs.com 获取
+        # 如果不用 PDF/RAG 相关功能，可以保留占位符（PDF 上传时才会真正调用）
+        api-key: sk-YOUR_DASHSCOPE_API_KEY_HERE
+
+  datasource:
+    # 本地 MySQL 账号密码
+    username: root
+    password: 123456
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      # password: 如果 Memurai 配了密码就填这里

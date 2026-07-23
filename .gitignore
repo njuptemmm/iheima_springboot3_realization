@@ -37,3 +37,13 @@ chat-pdf.*
 uploads/
 logs/
 *.log
+
+# 本地敏感配置（API key、DB 密码等）—— 绝对不能进 git
+# Spring Boot 会通过 spring.profiles.active=local 自动加载 application-local.yaml
+src/main/resources/application-local.yaml
+src/main/resources/application-local.yml
+src/main/resources/application-local.properties
+# 兼容其他 profile 名（dev 也常见）
+src/main/resources/application-dev-local.yaml
+.env
+.env.local
