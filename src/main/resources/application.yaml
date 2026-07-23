@@ -3,12 +3,12 @@ spring:
     name: demo_ai_2
   ai:
     openai:
-      base-url: https://dashscope.aliyuncs.com/compatible-mode
-      api-key:  ${API_KEY}
+      base-url: https://api.moonshot.cn
+      api-key:  sk-ycxvUSYTAqAAnbbSFs5LLmeXlmCBUBCNjvE4msqEQxjmvmgX
       chat:
         options:
-          model:  qwen-omni-turbo
-          temperature: 0.8
+          model:  kimi-k2.6
+          temperature: 1
       embedding:
         base-url: https://dashscope.aliyuncs.com/compatible-mode
         api-key:  ${API_KEY}

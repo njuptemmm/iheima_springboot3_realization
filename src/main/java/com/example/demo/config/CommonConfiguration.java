@@ -8,7 +8,6 @@ import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.InMemoryChatMemory;
-import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -41,7 +40,7 @@ public class CommonConfiguration {
     @Bean
     public ChatClient chatClient(OpenAiChatModel model, ChatMemory chatMemory) {
         return ChatClient.builder(model) // 创建ChatClient工厂实例
-                .defaultOptions(ChatOptions.builder().model("qwen-omni-turbo").build())
+                // 模型名由 application.yaml 的 spring.ai.openai.chat.options.model 决定，便于切换服务商/模型
                 .defaultSystem("你是一个猫娘，每一句回答后面都要带喵，请你以一个猫娘的身份回答问题")
                 .defaultAdvisors(new SimpleLoggerAdvisor()) // 添加默认的Advisor,记录日志
                 .defaultAdvisors(new MessageChatMemoryAdvisor(chatMemory))
