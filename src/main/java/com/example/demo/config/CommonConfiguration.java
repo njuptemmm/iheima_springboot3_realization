@@ -7,7 +7,6 @@ import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.InMemoryChatMemory;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -20,14 +19,10 @@ import org.springframework.context.annotation.Configuration;
 public class CommonConfiguration {
 
 
-    //关于对话历史的解决方案：使用ChatMemory来存储对话历史，而不是使用InMemoryChatMemoryRepository，这个似乎目前不会支持
-    //这里是SpringAI为我们实现了一个会话记忆的功能
-
-    //定义一个会话记忆存储对象
-    @Bean
-    public ChatMemory chatMemory() {
-        return new InMemoryChatMemory();
-    }
+    //关于对话历史的解决方案：
+    // ChatMemory bean 现在由 RedisChatMemory 提供（@Component 自动注册），
+    // 消息内容写入 Redis，服务重启后仍能记得历史对话。
+    // 之前的 InMemoryChatMemory 已被替换，如果想临时切回内存版，可以在这里重新定义一个 @Bean 覆盖。
 
 
     @Bean

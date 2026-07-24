@@ -4,9 +4,12 @@ import com.example.demo.entity.vo.Result;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -41,6 +44,17 @@ public class GlobalExceptionHandler {
         }
         log.warn("Validation error: {}", message);
         return Result.fail(message);
+    }
+
+    /**
+     * 未匹配到任何路由的 404 请求：常见于外部服务（如 NI WebServer 相关探针）
+     * 打 DEBUG 级别、不打堆栈，避免刷屏；同时把 HTTP 状态码修正为 404
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public Result handleNoResourceFound(NoResourceFoundException e) {
+        log.debug("No resource: {}", e.getResourcePath());
+        return Result.fail("路径不存在");
     }
 
     /**
