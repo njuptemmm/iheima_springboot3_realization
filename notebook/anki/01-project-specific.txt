@@ -1,0 +1,46 @@
+# ==============================================================================
+# Anki 卡组：本项目直接相关（iheima_springboot3_realization）
+# ------------------------------------------------------------------------------
+# 导入方法（在 Anki 桌面版）：
+#   File → Import → 选本文件
+#   Type: Basic
+#   Deck: 项目实战-iheima-springboot（建议）
+#   Field separator: Tab
+#   勾选 "Allow HTML in fields"
+#   把行数少于字段数的行跳过（Anki 自动处理）
+#
+# 格式：每行 = 正面\t背面
+# 井号开头的行是注释，Anki 会自动忽略
+# ==============================================================================
+
+Spring AI 的 ChatMemory 接口定义了哪些核心方法？	三个：<br>1. void add(String conversationId, List&lt;Message&gt; messages)<br>2. List&lt;Message&gt; get(String conversationId, int lastN)<br>3. void clear(String conversationId)<br>另有 default void add(String, Message) 单条消息重载。
+本项目 RedisChatMemory 用什么 Redis 数据结构存消息？为什么？	Redis List（key = chat_memory:{conversationId}）。<br>理由：<br>1. RPUSH 追加保持时间顺序<br>2. LRANGE key -N -1 完美对应"取最近 N 条"<br>3. 与 Spring AI 的 get(id, lastN) 语义一致
+本项目为什么不直接序列化 Spring AI 的 Message 对象存 Redis？	Message 子类含 Media（Resource 类型）和 ToolCall，JSON 序列化会失败。<br>用中间 DTO PersistedMessage {type, text, metadata} 只保留必要字段。<br>额外好处：Spring AI 升级 Message 结构不影响已存数据。
+本项目 RedisChatMemory 只持久化哪三种消息类型？	USER、ASSISTANT、SYSTEM 三种文本消息。<br>不保存：ToolResponseMessage（当次临时数据）、Media（图片/PDF）、ToolCall 参数。
+本项目里 @Primary 用在哪里？为什么这么设计？	用在 RedisChatHistoryRepository 类上。<br>InMemoryChatHistoryRepository 也是 @Component 但不带 @Primary。<br>目的：<br>1. Spring 默认注入 Redis 版本<br>2. 内存版保留做对照 / 测试<br>3. 想切回时移动 @Primary 即可
+本项目 Spring AI 的 chatId 是怎么传给 ChatMemory 的？	Controller 里调用时通过 advisor param 传：<br>.advisors(a -&gt; a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))<br>MessageChatMemoryAdvisor 会用这个 chatId 调用 chatMemory.get / chatMemory.add。
+本项目 Spring Cache 的 key 前缀是什么？在哪配置？	demo_ai_2:cache: <br>配置在 application.yaml：<br>spring.cache.redis.key-prefix: "demo_ai_2:cache:"<br>最终缓存 key 形如：demo_ai_2:cache:schools::all
+本项目 @Cacheable 的 SpEL key 是怎么写的？	querySchool 用固定 key：@Cacheable(value="schools", key="'all'")<br>queryCourses 根据 CourseQuery 变化：@Cacheable(value="courses", key="#query != null ? #query.toString() : 'null'")<br>Lombok @Data 自动生成的 toString() 保证不同筛选组合各自缓存。
+本项目为什么关闭了缓存 null 值（cache-null-values: false）？	1. 缓存穿透风险低：course/school 由 AI 工具调用触发，AI 不会构造大量恶意的 id<br>2. 缓存 null 反而占内存<br>3. 项目场景不需要防穿透
+本项目 CommonConfiguration 为什么删掉了手动的 chatMemory bean？	删除前：@Bean chatMemory() { return new InMemoryChatMemory(); }<br>删除原因：RedisChatMemory 加了 @Component 自动注册，如果 CommonConfiguration 里还留着手动 bean 会导致 duplicate bean 错误。<br>删掉后 RedisChatMemory 自动接管。
+Spring AI 的 MessageChatMemoryAdvisor 什么时候调用 ChatMemory？	1. 请求前 before()：调用 chatMemory.get(chatId, N) 拉取历史，注入到 messages 数组<br>2. 模型响应后 after()：调用 chatMemory.add(chatId, [userMsg, assistantMsg]) 存回<br>用户代码不需要主动调 ChatMemory，Advisor 自动完成。
+LLM "记忆"的本质是什么？	大模型本身**无状态**。每次请求都要重新把完整历史打包发过去。<br>"记忆"是应用层维护的：每次带完整历史 → 模型看起来像记得。<br>ChatMemory 决定了 AI 能"记住"多少历史内容。
+本项目敏感配置分离用了什么方案？	Spring Profile 分离：<br>1. application.yaml 进 git，不含敏感值，设 spring.profiles.active=local<br>2. application-local.yaml 存真实 key/密码，被 .gitignore 排除<br>3. application-local.yaml.example 是占位模板，进 git 供参考
+Spring Boot 加载 application-local.yaml 的顺序是什么？	1. 先加载 application.yaml<br>2. 读取到 spring.profiles.active=local<br>3. 加载 application-local.yaml<br>4. 后者覆盖前者的同名 key
+本项目 Kimi 和 DashScope 为什么用不同 API key 变量？	对话模型走 Kimi (base-url: api.moonshot.cn/v1)，Embedding 走 DashScope (dashscope.aliyuncs.com)。<br>两家平台独立计费、独立限额。用不同变量名区分能：<br>1. 分别看清各自消耗<br>2. 换模型时不互相干扰
+本项目为什么 Embedding 不跟着换成 Kimi？	1. 换 Embedding 模型后向量维度可能变（现在 1024 维）<br>2. 维度不匹配会导致已存 PDF 向量库直接报错<br>3. 需要清空 chat-pdf.json 并重新上传所有 PDF<br>成本高，保留 DashScope 是最稳过渡。
+本项目 RedisTemplate 的 key 和 value 分别用什么序列化器？	key/hashKey：StringRedisSerializer（UTF-8 字符串，memurai-cli 可读）<br>value/hashValue：GenericJackson2JsonRedisSerializer（JSON 存储）<br>加上 BasicPolymorphicTypeValidator 限制反序列化白名单（安全）
+本项目为什么 chat_history 用 StringRedisTemplate 而不用 RedisTemplate？	chatId 是纯字符串，不需要 JSON 序列化。<br>StringRedisTemplate 更轻量，专门给 String-String 场景用。<br>RedisTemplate&lt;String, Object&gt; 走完整 JSON 序列化，浪费。
+Redis Set 数据结构在本项目里的价值是什么？	chat_history:{type} 用 Set：<br>1. 天然去重（对应原代码里的 contains() 判断）<br>2. SADD 是 O(1)<br>3. 并发写安全<br>4. 语义清晰："一类业务下的所有 chatId"
+Spring Cache 的 @Cacheable 命中缓存时会不会执行方法体？	不会。<br>Spring 通过 AOP 代理，命中缓存时**直接返回缓存值**，方法体根本不执行。<br>这也是为什么 CourseTools.querySchool 命中后后端日志看不到 SQL。
+本项目 CourseTools 里为什么 createCourseReservation 没加 @Cacheable？	1. 它是**写操作**，不是查询<br>2. 每次调用都必须真实写入 DB<br>3. 反而应该在这个方法上加 @CacheEvict 让课程缓存失效（本项目暂未做）
+本项目全局异常处理器为什么单独处理 NoResourceFoundException？	Spring MVC 6.x 找不到路由会抛 NoResourceFoundException（404）。<br>如果被兜底 @ExceptionHandler(Exception.class) 抓住会打成 ERROR + 全栈。<br>NI Multisim 的服务会不断探测 /api/v1/health → 日志刷屏。<br>单独处理：DEBUG 级不打堆栈 + 修正 HTTP 状态码为 404。
+本项目为什么用 @Validated + @NotBlank 而不是自己判空？	1. 声明式校验，代码更清爽<br>2. 参数不合法时 Spring 抛 ConstraintViolationException，被全局异常处理器统一转成 Result JSON<br>3. 前后端契约统一
+本项目 SQL 排序注入是怎么防的？	CourseTools.queryCourses 里 sort.field 可能被 LLM 生成任意字符串。<br>解决：白名单校验<br>private static final Set&lt;String&gt; ALLOWED_SORT_FIELDS = Set.of("price", "duration");<br>不在白名单的字段直接 continue 跳过。
+本项目 PDF 上传文件名怎么防路径遍历？	LocalPdfFileRepository.sanitizeFilename():<br>1. StringUtils.getFilename(filename) 剥掉路径部分<br>2. 替换 Windows 非法字符 \/:*?"&lt;&gt;|<br>3. 保存前用 Path.startsWith(baseDir) 二次校验最终路径必须在 uploads/pdf 内
+本项目 CORS 是全开的吗？	代码上默认全开（allowedOrigins: "*"），但已做了参数化：<br>application.yaml 里 app.cors.allowed-origins: "*"<br>生产环境改成实际前端域名（如 http://localhost:5173）即可，MvcConfiguration 会读这个配置。
+本项目 chat-pdf.json 和 chat-pdf.properties 为什么曾经进过 git？后来怎么处理的？	原因：项目初始化时被加到了 tracking，.gitignore 加规则时它们已在追踪列表里。<br>.gitignore 只对未追踪文件生效。<br>处理：git rm --cached chat-pdf.* 从追踪中移除（保留本地文件），然后规则才生效。
+Redis 里 chat_memory 的 key 里为什么带 chatId？	每个会话独立记忆。<br>key = chat_memory:{conversationId} 保证不同会话互不干扰。<br>如果所有会话共享一个 key，AI 会把不同用户的对话混在一起。
+本项目为什么保留了 InMemoryChatHistoryRepository 而不删除？	作为学习对照：<br>1. 看两种实现的写法差异<br>2. 想临时切回内存版只需移动 @Primary<br>3. 单元测试时可显式注入内存版，避免依赖 Redis
+本项目端到端验证 ChatMemory 持久化的关键测试步骤是什么？	1. 前端用某 chatId 说"我叫小明"<br>2. AI 回答"你好小明喵~"（此时消息进 Redis）<br>3. 后端 Ctrl+C 停止 → 重新启动<br>4. **用同一个 chatId** 问"我叫什么？"<br>5. AI 若能答"小明" → 持久化生效<br>改造前这步会失败（AI 不记得）。
+本项目重启后 Redis 里 chat_memory:{id} 的数据从哪里来？	从上次运行时 RPUSH 进去的。<br>Memurai 默认 RDB 持久化 → 磁盘上有 dump.rdb → 重启时加载。<br>只要 Memurai 服务不重装，Redis 数据能跨"Java 应用重启"保留。

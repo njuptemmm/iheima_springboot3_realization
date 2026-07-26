@@ -1,0 +1,61 @@
+# ==============================================================================
+# Anki 卡组：向量数据库 + RAG + AI 长期记忆
+# ------------------------------------------------------------------------------
+# 导入方法：File → Import → Type: Basic → Field separator: Tab
+# 建议 Deck 名：向量数据库-RAG-长期记忆
+# ==============================================================================
+
+什么是向量数据库？和普通数据库有什么区别？	向量数据库存的是"向量"，核心操作是"找最相似的向量"。<br>普通数据库存结构化数据（行/列），查询靠精确匹配或范围查询。<br>向量数据库靠 Embedding + 相似度计算（通常是余弦相似度）做近似检索。
+
+为什么 AI 应用需要向量数据库？	两个原因：<br>1. 大模型上下文有限，不能把整本 PDF/全部历史塞进去<br>2. 模型权重固定，无法实时记住用户的新事实<br>向量数据库让模型按需检索相关片段，实现"外部记忆"。
+
+余弦相似度的公式是什么？值域多少？	cos(A,B) = (A·B) / (|A|*|B|)<br>值域 [-1, 1]，越接近 1 越相似。<br>OpenAI/DashScope 的 embedding 向量通常已归一化，点积 ≈ 余弦相似度。
+
+常见的向量索引有哪些？各有什么特点？	1. Flat（暴力扫描）：精确但慢 O(n)<br>2. HNSW：近似最近邻图，快、召回高、内存大<br>3. IVF：先聚类再搜索，省内存<br>4. PQ/SCaNN：量化压缩，省内存但精度有损失
+
+本项目向量库用的是什么？为什么选它？	SimpleVectorStore（Spring AI 内置，内存型）。<br>理由：学习阶段零运维、零成本；VectorStore 是接口，生产可平替 pgvector/Milvus。<br>缺点是暴力扫描，不适合大数据量高并发。
+
+本项目 RAG 的完整链路是什么？	PDF 上传 → 按页粗切 → TokenTextSplitter 细切 → DashScope Embedding → SimpleVectorStore → 提问时 RerankAdvisor 粗排 topK=8 → LLM 精排 top 3 → 注入 prompt → Kimi 生成回答。
+
+PagePdfDocumentReader 在本项目中的作用是什么？	按 PDF 页边界读取，每页生成一个 Document。<br>作用是保留 page_number 元数据，让检索结果可溯源（"出自第 N 页"）。
+
+TokenTextSplitter 的关键参数有哪些？本项目怎么配？	chunkSize=500（每个 chunk 约 500 tokens）<br>minChunkSizeChars=350（最小字符数）<br>minChunkLengthToEmbed=50（小于 50 tokens 不单独入向量库）<br>maxNumChunks=100（单页上限）<br>keepSeparator=true（保留段落分隔符）
+
+本项目为什么给每个 chunk 补 file_name 元数据？	修复一个 bug：PagePdfDocumentReader 生成的 Document 没有 file_name，<br>但 PdfController.chat() 用 FilterExpressionBuilder.eq("file_name", filename) 做过滤，<br>没有 metadata 就匹配不到任何文档，多个 PDF 会混在一起。
+
+文本切块有哪些策略？本项目用了哪几种？	固定大小分块、语义分块、滑动窗口、递归分块、文档结构感知。<br>本项目用了固定大小分块（TokenTextSplitter）+ 文档结构感知（page_number 元数据）。<br>语义分块和递归分块实现复杂，未采用；滑动窗口因 Spring AI M6 不支持 overlap 未实现。
+
+Chunking 中 overlap 的作用是什么？为什么本项目没用？	overlap 让相邻 chunk 共享一部分内容，防止语义在边界处断裂。<br>本项目没用是因为 Spring AI 1.0.0-M6 的 TokenTextSplitter 不支持 overlap 参数。<br>面试时诚实说明版本限制，并解释用 chunkSize/minChunkSize 做补偿。
+
+本项目 Embedding 为什么保留 DashScope 而不是跟 Kimi 一起换？	1. 换 Embedding 模型可能改变向量维度（当前 1024 维）<br>2. 维度不匹配会导致已存 PDF 向量库报错<br>3. 需要清空 chat-pdf.json 并重新上传所有 PDF<br>所以聊天模型切 Kimi，Embedding 保留 DashScope 是最稳过渡。
+
+Rerank 解决了什么问题？	向量检索（余弦相似度）快但语义理解弱，容易把"含相同关键词但不相关"的片段排前面。<br>Rerank 用更强的模型对粗排结果二次打分，只把最相关的注入 prompt。
+
+本项目 Rerank 的两级排序流程是什么？	第一级粗排：vectorStore.similaritySearch(topK=8) 用余弦相似度召回。<br>第二级精排：对每个候选让 LLM 打 1-10 分。<br>最后取 top 3 作为上下文注入 prompt。
+
+RerankAdvisor 为什么实现 BaseAdvisor 而不是直接实现 CallAroundAdvisor？	BaseAdvisor 同时提供了 CallAroundAdvisor 和 StreamAroundAdvisor 的默认实现，<br>只需重写 before()/after()。PDF chat 和普通 chat 都用流式，必须支持 streaming。
+
+RerankAdvisor 里打分失败怎么办？	捕获异常，给该候选一个默认低分（1.0），不阻塞整体流程。<br>体现"系统承担复杂性"的设计原则。
+
+什么是 AI 长期记忆系统？和短期记忆的区别？	短期记忆：存会话原文，精确但换会话失效，token 占用高。<br>长期记忆：提炼事实（偏好/背景/目标）并向量化，跨会话语义召回。<br>本项目用 RedisChatMemory 做短期记忆，SemanticMemoryService 做长期记忆。
+
+SemanticMemoryService 怎么提取事实？	流式响应结束后，ChatController 触发 extractAndStore(chatId)。<br>服务从 RedisChatMemory 读最近 20 条消息，取最后一条 USER + 最后一条 ASSISTANT，<br>用 LLM prompt 提取事实（"以 - 开头每行一条"），解析后向量化存入 SimpleVectorStore。
+
+为什么事实提取不放在 SemanticMemoryAdvisor.after() 里？	Spring AI 1.0.0-M6 的 BaseAdvisor.aroundStream() 会对每一块 chunk 调用一次 after()，<br>会导致重复提取、assistant 消息不完整、多次调用 LLM 浪费 token。<br>所以改在 Controller 的 Flux.doOnComplete() 中统一触发。
+
+语义记忆的持久化文件是什么？和 PDF 向量库隔离吗？	semantic-memory.json，与 chat-pdf.json 完全隔离。<br>因为二者用途不同：一个是跨会话用户事实，一个是 PDF 文档片段。<n
+语义记忆召回后怎么注入 prompt？	SemanticMemoryAdvisor.before() 做 similaritySearch(topK=3)，<br>把召回的事实格式化成列表，追加到 system prompt 的【你的长期记忆】区块。
+
+生产环境向量数据库有哪些选择？	pgvector（已有 PostgreSQL 的团队）、Milvus/Zilliz（大规模）、Redis Stack（已有 Redis）、ChromaDB（Python 原型）、Pinecone/Weaviate（全托管 SaaS）。
+
+Spring AI 的 VectorStore 接口有什么好处？	接口隔离。SimpleVectorStore、PgVectorStore、MilvusVectorStore 都实现同一接口。<br>业务代码（Controller、Advisor、Service）零改动，只改 CommonConfiguration 一个 Bean。
+
+MCP 协议是什么？和本项目有什么关系？	MCP（Model Context Protocol）是 Anthropic 提出的模型上下文协议，<br>让 AI 应用能标准化地访问外部工具和数据源。<br>本项目没直接用 MCP，但 Spring AI 的 Tool Calling 思想与 MCP 一致：模型决定何时调外部工具。
+
+RAG 里"检索增强生成"的"增强"体现在哪？	不是让模型背下所有知识，而是在生成时动态检索相关片段注入 prompt。<br>这样模型能回答训练数据中没有的、私有的、实时更新的内容。
+
+本项目在 AI 应用工程化上做了哪些细节？	1. 敏感配置分离：application-local.yaml 存 key/password，.gitignore 排除<br>2. 全局异常处理：NoResourceFoundException 单独处理避免日志刷屏<br>3. SQL 注入防护：ORDER BY 字段白名单<br>4. 路径遍历防护：sanitizeFilename + Path.startsWith 校验<br>5. 接口隔离：VectorStore/ChatMemory 都是接口，实现可替换
+
+面试怎么讲"RAG 三件套"？	"文本切块决定检索粒度，Embedding 决定语义表示，Rerank 决定最终注入 prompt 的质量。三者共同决定 RAG 回答效果。"
+
+面试怎么讲"向量数据库在 AI 长期记忆中的应用"？	"短期记忆用 Redis 存会话原文，长期记忆用向量库存提炼的事实。用户换会话后，新提问 embedding 与向量库中的事实做相似度检索，召回相关记忆注入 system prompt，让 AI 持续了解用户。"

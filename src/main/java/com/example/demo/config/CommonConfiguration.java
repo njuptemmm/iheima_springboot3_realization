@@ -1,15 +1,16 @@
 package com.example.demo.config;
 
+import com.example.demo.advisor.RerankAdvisor;
+import com.example.demo.advisor.SemanticMemoryAdvisor;
+import com.example.demo.memory.SemanticMemoryService;
 import com.example.demo.tools.CourseTools;
 import com.example.demo.constants.SystemConstants;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.client.advisor.QuestionAnswerAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.SimpleVectorStore;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.context.annotation.Bean;
@@ -33,12 +34,13 @@ public class CommonConfiguration {
 
     //单纯实现一个可以进行聊天的机器人
     @Bean
-    public ChatClient chatClient(OpenAiChatModel model, ChatMemory chatMemory) {
+    public ChatClient chatClient(OpenAiChatModel model, ChatMemory chatMemory, SemanticMemoryService semanticMemoryService) {
         return ChatClient.builder(model) // 创建ChatClient工厂实例
                 // 模型名由 application.yaml 的 spring.ai.openai.chat.options.model 决定，便于切换服务商/模型
                 .defaultSystem("你是一个猫娘，每一句回答后面都要带喵，请你以一个猫娘的身份回答问题")
                 .defaultAdvisors(new SimpleLoggerAdvisor()) // 添加默认的Advisor,记录日志
                 .defaultAdvisors(new MessageChatMemoryAdvisor(chatMemory))
+                .defaultAdvisors(new SemanticMemoryAdvisor(semanticMemoryService))
                 .build(); // 构建ChatClient实例
 
     }
@@ -75,20 +77,15 @@ public class CommonConfiguration {
 
     //一个能够解析pdf文件的机器人
     @Bean
-    public ChatClient pdfChatClient(OpenAiChatModel model, ChatMemory chatMemory,VectorStore vectorStore) {
+    public ChatClient pdfChatClient(OpenAiChatModel model, ChatMemory chatMemory, VectorStore vectorStore) {
         return ChatClient
                 .builder(model)
                 .defaultSystem("请你根据pdf中间的信息进行问题的解答，你的回答需要结合pdf中间相关的信息进行回答，在pdf文件的基础之上完成对于问题的分析和解答")
                 .defaultAdvisors(
                         new SimpleLoggerAdvisor(),
                         new MessageChatMemoryAdvisor(chatMemory),
-                        new QuestionAnswerAdvisor(
-                                vectorStore,
-                                SearchRequest.builder()
-                                        //.similarityThreshold(0.6)
-                                        .topK(2)
-                                        .build()
-                        )
+                        // Rerank 粗排+精排替换原来的 QuestionAnswerAdvisor
+                        new RerankAdvisor(vectorStore, model)
                 )
                 .build();
     }

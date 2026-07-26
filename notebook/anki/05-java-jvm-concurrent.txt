@@ -1,0 +1,50 @@
+# ==============================================================================
+# Anki 卡组：Java 基础 + JVM + 并发
+# ------------------------------------------------------------------------------
+# 导入方法：File → Import → Type: Basic → Field separator: Tab
+# 建议 Deck 名：Java-基础-JVM-并发
+# ==============================================================================
+
+Java 里 == 和 equals() 的区别？	== ：<br>- 基本类型：比较值<br>- 对象：比较引用（内存地址）<br>equals()：<br>- Object 默认实现是 ==<br>- String / Integer 等重写为值比较<br>推荐：POJO 用 Lombok @Data 或 @EqualsAndHashCode 自动生成。
+Java 里 String 是不可变的，为什么？	1. 安全：String 常用作 HashMap key、DB 连接参数，不可变防止被恶意修改<br>2. 线程安全：不可变对象天生线程安全<br>3. 哈希值可缓存：hash 只算一次<br>4. 支持字符串常量池<br>实现：final class + private final char[] value
+String、StringBuilder、StringBuffer 的区别？	String：不可变<br>StringBuilder：可变，**非线程安全**，快（Java 5+）<br>StringBuffer：可变，**线程安全**（synchronized），慢<br>单线程用 StringBuilder，多线程共享用 StringBuffer 或 StringBuilder+锁。
+Java 集合体系概览？	Collection：<br>├ List：ArrayList、LinkedList、Vector（老）<br>├ Set：HashSet、LinkedHashSet、TreeSet<br>└ Queue：ArrayDeque、PriorityQueue<br>Map：<br>├ HashMap、LinkedHashMap、TreeMap<br>└ ConcurrentHashMap、Hashtable（老）
+ArrayList 和 LinkedList 区别？	ArrayList：<br>- 底层数组，随机访问 O(1)<br>- 尾部插入均摊 O(1)，中间插入 O(n)<br>- 内存连续，CPU 缓存友好<br>LinkedList：<br>- 双向链表<br>- 随机访问 O(n)<br>- 首尾插入 O(1)<br>99% 场景用 ArrayList。
+HashMap 底层结构？	Java 8+：数组 + 链表 + 红黑树<br>数组默认长度 16，负载因子 0.75<br>链表长度 &gt; 8 且数组长度 &gt;= 64 时转红黑树<br>红黑树节点 &lt; 6 时退化回链表
+HashMap 的 put 流程？	1. hash(key) 算下标<br>2. 数组该位置为空 → 直接放<br>3. 位置有值：<br>   3.1 key 相同 → 覆盖<br>   3.2 是红黑树 → 树插入<br>   3.3 是链表 → 尾插；插完检查是否要树化<br>4. size 超过阈值 → 扩容 2 倍
+HashMap 为什么线程不安全？	1. put 时并发扩容可能导致链表成环（JDK 7）<br>2. put 时并发可能丢数据（JDK 8）<br>解决：<br>1. Collections.synchronizedMap（性能差，全表锁）<br>2. ConcurrentHashMap（推荐）
+ConcurrentHashMap 怎么保证线程安全？	Java 8+：<br>1. put：CAS 尝试放头节点 → 失败则 synchronized 锁头节点<br>2. 锁粒度是**桶**，不同桶并发不阻塞<br>3. size 用 CounterCell 分段计数<br>比 Java 7 的 Segment 分段锁粒度更细。
+Java 里的 final 关键字用法？	1. final 类：不能被继承（如 String、Integer）<br>2. final 方法：不能被重写<br>3. final 变量：<br>   - 基本类型：值不能变<br>   - 引用：引用不能变，指向对象内部可以变<br>4. final 参数：方法内不能重新赋值
+Java 里 static 关键字？	1. static 变量：类变量，所有实例共享<br>2. static 方法：类方法，不能访问实例成员<br>3. static 代码块：类加载时执行一次<br>4. static 内部类：不持有外部类引用<br>5. static import：静态导入
+Java 反射是什么？会带来什么问题？	通过 Class 对象在运行时读取/操作类的字段、方法。<br>问题：<br>1. 性能开销（每次要查方法表）<br>2. 破坏封装（可访问 private）<br>3. 安全风险（可能绕过检查）<br>用途：Spring 的 IoC、Jackson 的序列化都靠反射。
+Java 泛型的类型擦除？	Java 泛型是编译期的，运行时会被擦除为 Object 或 bound 类型。<br>影响：<br>1. 不能 new T()<br>2. 不能 instanceof List&lt;String&gt;<br>3. 不能重载 method(List&lt;String&gt;) 和 method(List&lt;Integer&gt;)
+Java 里 try-with-resources 的原理？	实现 AutoCloseable 或 Closeable 接口的资源，在 try 结束时自动 close。<br>编译器展开为：<br>try { ... } catch { ... } finally { resource.close(); }<br>本项目 LocalPdfFileRepository 里读取 chat-pdf.properties 就用了这个语法。
+Java 里的异常层次？	Throwable<br>├ Error（严重错误，如 OutOfMemoryError，一般不 catch）<br>└ Exception<br>  ├ RuntimeException（非受检，编译器不强制处理）<br>  └ 其他受检异常（IOException 等，必须处理）
+try/catch/finally 里 return 顺序？	1. try 里 return → 保存返回值到临时变量<br>2. 执行 finally<br>3. 返回临时变量的值<br>坑：finally 里 return 会覆盖 try 里的 return，且吃掉异常。**永远不要在 finally 里 return**。
+JVM 内存结构？	1. 方法区（元空间）- 类信息、常量、静态变量<br>2. 堆 - 对象实例（GC 主战场）<br>   - 年轻代：Eden、S0、S1<br>   - 老年代<br>3. 虚拟机栈 - 每个线程一个，存栈帧（局部变量表、操作数栈）<br>4. 本地方法栈 - JNI 用<br>5. 程序计数器
+JVM 里堆和栈的区别？	堆：<br>- 线程共享<br>- 存对象<br>- 有 GC<br>栈：<br>- 线程私有<br>- 存局部变量、方法调用<br>- 无 GC（随方法返回自动清理）
+Java 对象的创建过程？	1. 类加载检查<br>2. 分配内存（指针碰撞 or 空闲列表）<br>3. 初始化零值<br>4. 设置对象头（GC 分代、锁标记、类型指针）<br>5. 执行 &lt;init&gt;（构造函数）
+Java 里对象什么时候进入老年代？	1. 年龄阈值（默认 15 次 Minor GC 后）<br>2. 大对象直接进（-XX:PretenureSizeThreshold）<br>3. 动态年龄判定：Survivor 里同龄对象超过一半空间，大于等于该年龄的都进老年代<br>4. Survivor 装不下的对象
+GC Roots 有哪些？	1. 虚拟机栈里引用的对象（局部变量）<br>2. 方法区里静态变量引用的对象<br>3. 方法区里常量引用的对象<br>4. 本地方法栈里 JNI 引用的对象<br>5. 活跃线程<br>可达性分析：从 GC Roots 出发遍历，不可达的对象可回收。
+常用的垃圾回收算法？	1. 标记-清除：有内存碎片<br>2. 复制：分两块用一半，无碎片但空间利用率 50%（年轻代用）<br>3. 标记-整理：标记后压缩，无碎片（老年代用）<br>4. 分代收集：结合以上，年轻代用复制、老年代用标记-整理
+常见的垃圾回收器？	1. Serial（单线程，Client 模式）<br>2. Parallel Scavenge（多线程，吞吐量优先）<br>3. CMS（并发标记清除，老年代低停顿）- 已废弃<br>4. G1（Region 分区，大堆友好，JDK 9+ 默认）<br>5. ZGC（超低停顿 &lt;10ms，JDK 15+ GA）
+G1 收集器的特点？	1. 把堆划分成很多小 Region（默认 2048 个）<br>2. 不区分年轻代/老年代的物理位置，而是逻辑上的<br>3. 可预测的停顿时间（-XX:MaxGCPauseMillis）<br>4. 混合收集：年轻代 + 部分老年代<br>5. 适合大堆（&gt; 4GB）
+线程的 6 种状态？	1. NEW - 已创建未 start<br>2. RUNNABLE - 可运行（在 CPU 上或等 CPU）<br>3. BLOCKED - 等 monitor 锁<br>4. WAITING - 无限等待（wait / join / park）<br>5. TIMED_WAITING - 定时等待（sleep / wait(t)）<br>6. TERMINATED - 结束
+synchronized 和 ReentrantLock 的区别？	synchronized：<br>- JVM 层面<br>- 自动释放<br>- 不可中断<br>- 非公平<br>ReentrantLock：<br>- API 层面<br>- 手动 lock/unlock<br>- 支持中断（lockInterruptibly）<br>- 支持公平锁<br>- 支持多条件（Condition）<br>- 支持 tryLock 超时
+synchronized 的锁升级？	偏向锁 → 轻量级锁 → 重量级锁<br>1. 偏向锁：一直只有一个线程用<br>2. 轻量级锁：出现竞争，CAS 自旋<br>3. 重量级锁：竞争激烈，用 OS mutex（涉及内核态切换）<br>JDK 15+ 已废弃偏向锁。
+volatile 的作用？	1. 可见性：修改立即刷回主存<br>2. 有序性：禁止指令重排（内存屏障）<br>3. **不保证原子性**（i++ 不安全）<br>用途：状态标志位、双重检查锁的单例模式
+volatile 和 synchronized 区别？	volatile：<br>- 只保证可见性和有序性<br>- 不能保证原子性<br>- 更轻量<br>synchronized：<br>- 保证可见性、有序性、原子性<br>- 有阻塞开销
+CAS 是什么？有什么问题？	Compare And Swap（比较并交换）：<br>compareAndSet(expected, new)：<br>当前值 == expected 才更新为 new，否则失败重试。<br>问题：<br>1. ABA 问题：值经历 A → B → A 后无法感知<br>2. 循环开销：自旋失败一直重试<br>3. 只能保证单变量原子性
+ABA 问题怎么解决？	加版本号：<br>AtomicStampedReference&lt;T&gt;：每次 CAS 带版本，V 和版本都对才成功。<br>Java 里的原子引用类：<br>- AtomicReference（无版本）<br>- AtomicStampedReference（带版本）<br>- AtomicMarkableReference（带布尔标记）
+AQS 是什么？	AbstractQueuedSynchronizer<br>Java 并发包的基础框架。核心：<br>1. state（int）表示同步状态<br>2. FIFO 双向队列存等待线程<br>3. 子类实现 tryAcquire/tryRelease<br>基于 AQS 实现的：ReentrantLock、Semaphore、CountDownLatch、ReentrantReadWriteLock。
+线程池的 7 大参数？	1. corePoolSize 核心线程数<br>2. maximumPoolSize 最大线程数<br>3. keepAliveTime 空闲存活时间<br>4. TimeUnit 时间单位<br>5. workQueue 阻塞队列<br>6. threadFactory 线程工厂<br>7. handler 拒绝策略
+线程池的执行流程？	1. 核心线程未满 → 新建核心线程<br>2. 核心线程满了 → 放阻塞队列<br>3. 队列也满了 → 新建非核心线程直到 max<br>4. 全都满了 → 触发拒绝策略
+线程池的 4 种拒绝策略？	1. AbortPolicy（默认）：抛 RejectedExecutionException<br>2. CallerRunsPolicy：调用者线程执行（有反压效果）<br>3. DiscardPolicy：静默丢弃<br>4. DiscardOldestPolicy：丢弃队列最老的任务，把新任务塞进去
+为什么不用 Executors 创建线程池？	Executors 的默认线程池有隐患：<br>1. newFixedThreadPool / newSingleThreadExecutor：无界队列 → OOM<br>2. newCachedThreadPool：无限创建线程 → OOM<br>阿里规范：手动 new ThreadPoolExecutor，显式指定所有参数。
+ThreadLocal 是什么？	线程本地变量。每个线程持有自己的副本，互不干扰。<br>底层：Thread 对象里有 ThreadLocalMap，key 是 ThreadLocal，value 是值。<br>典型用途：<br>1. 线程上下文（用户身份、traceId）<br>2. 数据库连接<br>3. SimpleDateFormat 线程安全化
+ThreadLocal 的内存泄漏问题？	ThreadLocalMap 的 key 是弱引用（GC 会回收），value 是强引用。<br>如果线程一直活着（如线程池），value 会一直保留。<br>解决：用完调 remove()。<br>Spring 的 RequestContextHolder 每次请求结束自动清理。
+CountDownLatch vs CyclicBarrier？	CountDownLatch：一次性，一个或多个线程等其他线程完成<br>CyclicBarrier：可重用，一组线程互相等待到达同一点<br>Semaphore：控制并发数量的信号量
+Java 里的 wait/notify 必须在什么条件下调用？	必须在 synchronized 块里对**同一个对象**调用。<br>否则抛 IllegalMonitorStateException。<br>wait 会释放锁并进入等待，notify 唤醒一个等待线程（不释放锁，出块才释放）。
+Java 8 有哪些重要新特性？	1. Lambda 表达式 + 函数式接口<br>2. Stream API<br>3. Optional<br>4. 新日期时间 API（java.time）<br>5. 接口默认方法（default 关键字）<br>6. 方法引用（Class::method）<br>7. 并行 Stream / ForkJoinPool
+Stream API 的 map、flatMap、reduce 区别？	map：一对一转换（List&lt;String&gt; → List&lt;Integer&gt;）<br>flatMap：一对多再合并（List&lt;List&lt;X&gt;&gt; → List&lt;X&gt;）<br>reduce：归约成一个值（求和、求最大）
+Optional 怎么用？为什么？	替代 null 判断，链式调用更清爽：<br>Optional.ofNullable(user).map(User::getName).orElse("unknown")<br>反模式：不要 Optional.get() 不加判断，也不要用它做参数或字段。<br>只用作方法返回值。

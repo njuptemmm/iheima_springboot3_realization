@@ -32,8 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 
-# 运行时本地数据（PDF 映射、向量库、上传目录、日志）
+# 运行时本地数据（PDF 映射、向量库、语义记忆、上传目录、日志）
 chat-pdf.*
+semantic-memory.json
 uploads/
 logs/
 *.log

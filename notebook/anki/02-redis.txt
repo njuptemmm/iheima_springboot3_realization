@@ -1,0 +1,50 @@
+# ==============================================================================
+# Anki 卡组：Redis 体系八股
+# ------------------------------------------------------------------------------
+# 导入方法：File → Import → Type: Basic → Field separator: Tab
+# 建议 Deck 名：Redis-体系八股
+# ==============================================================================
+
+Redis 是什么？为什么快？	内存 KV 数据库。快的原因：<br>1. 数据在内存（对比磁盘 100 倍以上快）<br>2. 单线程模型，无锁竞争、无上下文切换开销<br>3. IO 多路复用（epoll）<br>4. 精心设计的数据结构（SDS/QuickList/SkipList）<br>5. 支持 pipeline 批量命令
+Redis 5 种基础数据类型？	String、List、Hash、Set、ZSet（Sorted Set）<br>另有：Bitmap、HyperLogLog、Geo、Stream（都基于基础类型扩展）
+Redis String 的底层实现？	SDS（Simple Dynamic String）<br>结构：len（长度）+ free（剩余空间）+ buf[]（字节数组）<br>相比 C 字符串优点：<br>1. O(1) 拿长度<br>2. 可存二进制（不靠 \0 结尾）<br>3. 空间预分配、惰性释放<br>4. 二进制安全
+Redis List 的底层实现？	Redis 3.2 前：ZipList（元素少）+ 双端链表（元素多）<br>Redis 3.2 后：QuickList = 双端链表节点里嵌 ZipList<br>兼顾链表的 O(1) 首尾插入 和 ZipList 的紧凑内存布局
+Redis Hash 的底层实现？	元素少：ZipList（连续内存，紧凑）<br>元素多：Hashtable（拉链法散列表）<br>切换阈值：hash-max-listpack-entries（默认 128）、hash-max-listpack-value（默认 64 字节）
+Redis Set 的底层实现？	全是整数且少：IntSet（有序数组，二分查找）<br>非整数或数量多：Hashtable<br>切换阈值：set-max-intset-entries（默认 512）
+Redis ZSet 的底层实现？	元素少：ZipList<br>元素多：SkipList + Hashtable 组合<br>SkipList 按 score 排序，支持 O(logN) 范围查询<br>Hashtable 按 member 反查 score O(1)<br>两个数据结构共享数据
+为什么 ZSet 用跳表而不是红黑树？	1. 实现更简单，代码可读性高<br>2. 范围查询更方便（跳表天然是链表结构，红黑树需要中序遍历）<br>3. 内存局部性对缓存更友好<br>4. 单线程模型下不需要红黑树严格平衡
+Redis 为什么是单线程？	Redis 的瓶颈不在 CPU，而在内存和网络 IO。<br>单线程好处：<br>1. 无锁竞争<br>2. 无上下文切换<br>3. 实现简单<br>Redis 6.0 引入 IO 多线程处理网络读写，命令执行仍单线程。
+Redis 持久化方案有哪些？	RDB（快照）、AOF（追加日志）、混合持久化（RDB + AOF 增量）
+RDB 持久化的原理？	定期把内存数据打包为二进制文件 dump.rdb。<br>触发方式：<br>1. save m n 配置（m 秒内 n 次写触发）<br>2. SAVE 命令（阻塞主线程，几乎不用）<br>3. BGSAVE 命令（fork 子进程后台写）<br>4. 主从同步时自动触发
+RDB 优缺点？	优点：<br>1. 文件小、加载快<br>2. 对性能影响小（fork 子进程）<br>3. 适合备份和迁移<br>缺点：<br>1. 可能丢失最后一次快照后的数据<br>2. fork 子进程会短暂阻塞主线程<br>3. 大数据集下 fork 耗时明显
+AOF 持久化的原理？	每次写操作追加到日志文件（RPUSH、SADD、SET 等）。<br>重启时**重放日志**恢复数据。
+AOF 的三种同步策略？	appendfsync 配置：<br>1. always：每次写都 fsync 落盘 - 几乎不丢但慢<br>2. everysec：每秒 fsync 一次 - 最多丢 1 秒（推荐）<br>3. no：交给操作系统 - 最多丢 30 秒 - 最快
+什么是 AOF 重写？为什么需要？	AOF 文件会越来越大（比如同一 key 被 SET 100 次都记）。<br>重写：fork 子进程根据当前内存状态生成精简版 AOF。<br>触发：auto-aof-rewrite-percentage / auto-aof-rewrite-min-size
+什么是 Redis 混合持久化？	Redis 4.0+ 引入。<br>AOF 文件开头是 RDB 快照（二进制），后面追加 AOF 增量日志。<br>重启时先加载 RDB（快），再重放少量增量 AOF（全）。<br>开启：aof-use-rdb-preamble yes
+Redis 主从复制的原理？	1. 从库连接主库，发 PSYNC<br>2. 首次同步：主库 BGSAVE 生成 RDB → 发给从库 → 从库加载<br>3. 增量同步：主库把新写命令持续推给从库<br>4. 断线重连：如果偏移量还在积压缓冲区（repl_backlog），可断点续传
+主从复制解决了什么、没解决什么？	解决：<br>1. 读扩展（读从库）<br>2. 数据备份<br>不解决：<br>1. 自动故障转移（主库挂了要人工切换）<br>2. 写性能扩展<br>3. 数据总量扩展（仍单机内存）
+Redis 哨兵（Sentinel）是什么？	3 个以上独立进程监控主从库。<br>作用：<br>1. 监控主/从库健康<br>2. 主库挂了投票选举新主<br>3. 通知客户端新主地址<br>需要奇数个 Sentinel（防脑裂）
+Redis Cluster 集群分片规则？	CRC16(key) % 16384 = slot<br>16384 个 slot 分给多个主库。<br>每个主库配从库做高可用。
+Redis Cluster 里多 key 操作的限制？	SINTER key1 key2 要求两个 key 在同一 slot，否则报错 CROSSSLOT。<br>解决：用 hash tag<br>{group}user:1 和 {group}user:2 只用 {group} 参与 CRC16 → 同 slot
+什么是缓存穿透？如何解决？	定义：查询一个**根本不存在**的数据，缓存和 DB 都没有，请求全打 DB。<br>解决：<br>1. 缓存空值（TTL 短，1-5 分钟）<br>2. 布隆过滤器预先标记存在的 key<br>3. 接口层参数校验
+什么是缓存击穿？如何解决？	定义：**热点 key** 突然过期，大量并发请求同时打 DB。<br>解决：<br>1. 互斥锁：只让一个线程查 DB，其他等着（SETNX）<br>2. 热点 key 永不过期 + 后台异步更新<br>3. 双缓存机制
+什么是缓存雪崩？如何解决？	定义 1：大量 key 同时过期<br>解决：TTL 加随机抖动（10 分钟 → 9-11 分钟）<br>定义 2：Redis 整体宕机<br>解决：<br>1. 集群化部署<br>2. 熔断降级（缓存不可用时给用户"稍后重试"）<br>3. 多级缓存（本地 caffeine + Redis）
+Redis 分布式锁最简单的实现？	SET lock:xxx &lt;uuid&gt; NX EX 30<br>NX = 不存在时才设置<br>EX 30 = 30 秒后自动过期（防死锁）<br>释放：先检查 value 是自己的 uuid，Lua 保证原子性
+SETNX 方案的问题？	1. 锁过期时业务还没做完 → 别人拿到锁 → 数据竞争<br>2. 主从架构下：主库设锁成功但没同步到从库时主挂了 → 别人也能拿锁<br>解决：Redisson 看门狗自动续期、RedLock 多节点投票
+RedLock 是什么？	Redis 官方推荐的分布式锁方案。<br>原理：向 N 个独立 Redis 实例申请锁，超过半数成功才算加锁成功。<br>争议：Martin Kleppmann 质疑其在时钟漂移场景下的正确性。
+Redisson 提供了什么？	Java 生态最流行的 Redis 客户端封装库：<br>1. 可重入锁 RLock<br>2. **看门狗自动续期**（业务没做完锁自动延期）<br>3. 公平锁、读写锁、信号量、CountDownLatch<br>4. RedLock 实现<br>5. 分布式集合（RMap、RSet 等）
+Redis 内存淘汰策略有哪些？	maxmemory-policy 配置：<br>1. noeviction（默认）：不淘汰，写入报错<br>2. allkeys-lru：所有 key 中 LRU<br>3. volatile-lru：设了 TTL 的 key 中 LRU<br>4. allkeys-lfu：所有 key 中 LFU（4.0+）<br>5. volatile-lfu<br>6. allkeys-random<br>7. volatile-random<br>8. volatile-ttl：淘汰即将过期的
+LRU 和 LFU 的区别？	LRU（最近最少使用）：淘汰最久没被访问的<br>LFU（最不经常使用）：淘汰访问频率最低的<br>LFU 更适合"偶尔访问一次但不常用"的场景（LRU 会误保留）。
+Redis 过期 key 的删除策略？	1. 惰性删除：访问 key 时检查是否过期，过期则删<br>2. 定期删除：Redis 每秒 10 次抽样检查一批 key<br>两者结合，避免过期 key 长期占内存也避免 CPU 全用于扫描。
+Redis 事务是什么？可以用吗？	MULTI ... EXEC 包起来一批命令。<br>特点：<br>1. 原子性：命令按顺序执行，不会被其他命令打断<br>2. 不支持回滚：某条命令失败其他仍会执行<br>3. 不隔离：读的命令不算事务的一部分<br>实际用得少，多用 Lua 脚本代替（原子 + 更强表达能力）
+Redis Pipeline 和事务的区别？	Pipeline：批量发送命令减少网络往返，无原子性保证<br>事务：MULTI/EXEC 保证命令按序执行，但也是通过 pipeline 传输<br>两者可以叠加：pipeline 里发一个事务
+Redis 大 key 有什么危害？	1. 网络阻塞：一次传输大 value 占带宽<br>2. 内存不均：Cluster 分片下会集中在某个节点<br>3. 删除风险：DEL 大 key 阻塞主线程<br>4. 迁移困难<br>处理：分片存储、UNLINK 异步删除、监控 --bigkeys
+Redis 热 key 问题？	定义：QPS 极高的单个 key，可能打爆单节点。<br>解决：<br>1. 本地缓存（caffeine 兜一层）<br>2. 拆分：hot_key → hot_key_1、hot_key_2 分散<br>3. 只读副本
+Redis 6.0 引入的多线程做什么？	网络 IO 多线程（读、写 socket）<br>命令执行仍是单线程<br>解决网络 IO 成为瓶颈时的性能问题。
+Redis 用什么协议？	RESP（REdis Serialization Protocol）<br>文本协议，简单可读。<br>请求：*3\r\n$3\r\nSET\r\n$3\r\nfoo\r\n$3\r\nbar\r\n<br>响应：+OK\r\n
+如何查看 Redis 慢查询？	SLOWLOG GET 10 - 看最近 10 条慢查询<br>SLOWLOG RESET - 清空<br>配置：<br>slowlog-log-slower-than 10000（微秒，超过 10ms 记录）<br>slowlog-max-len 128
+Redis 里 SCAN 和 KEYS 的区别？	KEYS pattern：一次性遍历所有 key，**阻塞主线程**，生产禁用<br>SCAN cursor：游标分批遍历，不阻塞，但结果可能有重复<br>类似的：HSCAN、SSCAN、ZSCAN
+Redis Stream 是什么？	Redis 5.0 引入的消息队列数据结构。<br>特性：<br>1. 支持消费者组（多消费者协作消费）<br>2. 消息 ID 自动生成（时间戳-序号）<br>3. ACK 机制（未确认消息可重投）<br>相比 Kafka：轻量、无需额外部署，但功能没那么全。
+Redis 里如何统计 UV？	HyperLogLog：<br>PFADD uv:2026-07-24 user1 user2 user3<br>PFCOUNT uv:2026-07-24 → 返回大约的独立用户数<br>特点：固定 12KB 内存 + 0.81% 误差率，适合海量 UV 估算
+Redis 里如何做地理位置查询？	GEO 命令（基于 ZSet 实现）：<br>GEOADD locations 121.5 31.2 shanghai<br>GEORADIUS locations 121 31 100 km<br>用途：附近的人、附近的店
+Redis 的 Pub/Sub 有什么局限？	1. 消息不持久化（发出去没消费者就丢了）<br>2. 不支持消费者组<br>3. 断线重连消息会丢<br>生产场景推荐 Stream 或 Kafka/RocketMQ。

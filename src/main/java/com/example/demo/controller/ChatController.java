@@ -2,6 +2,7 @@
 
 package com.example.demo.controller;
 
+import com.example.demo.memory.SemanticMemoryService;
 import com.example.demo.repository.ChatHistoryRepository;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,8 @@ public class  ChatController {
     private final ChatClient chatClient;
 
     private final ChatHistoryRepository chatHistoryRepository;
+
+    private final SemanticMemoryService semanticMemoryService;
 
     /*
     //使用非流式的方法来进行输出
@@ -66,9 +69,10 @@ public class  ChatController {
         return chatClient.prompt()
                 .user(prompt)
                 //导入一个前端的ID，从而实现能够记录日志的计算
-                .advisors(a->a.param(CHAT_MEMORY_CONVERSATION_ID_KEY,chatId))
+                .advisors(a -> a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))
                 .stream()
-                .content();
+                .content()
+                .doOnComplete(() -> semanticMemoryService.extractAndStore(chatId));
     }
 
     private Flux<String> multiModelChat(String prompt, String chatId, List<MultipartFile> files) {
@@ -85,7 +89,8 @@ public class  ChatController {
                 .user(p -> p.text(prompt).media(medias.toArray(Media[]::new)))
                 .advisors(a -> a.param(CHAT_MEMORY_CONVERSATION_ID_KEY, chatId))
                 .stream()
-                .content();
+                .content()
+                .doOnComplete(() -> semanticMemoryService.extractAndStore(chatId));
     }
 
 }
